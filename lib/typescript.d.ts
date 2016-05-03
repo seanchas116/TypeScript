@@ -405,9 +405,6 @@ declare namespace ts {
         text: string;
         originalKeywordKind?: SyntaxKind;
     }
-    interface TransientIdentifier extends Identifier {
-        resolvedSymbol: Symbol;
-    }
     interface QualifiedName extends Node {
         left: EntityName;
         right: Identifier;
@@ -1047,6 +1044,30 @@ declare namespace ts {
         postParameterName?: Identifier;
         isBracketed: boolean;
     }
+    enum FlowKind {
+        Unreachable = 0,
+        Start = 1,
+        Label = 2,
+        LoopLabel = 3,
+        Assignment = 4,
+        Condition = 5,
+    }
+    interface FlowNode {
+        kind: FlowKind;
+        id?: number;
+    }
+    interface FlowLabel extends FlowNode {
+        antecedents: FlowNode[];
+    }
+    interface FlowAssignment extends FlowNode {
+        node: Expression | VariableDeclaration | BindingElement;
+        antecedent: FlowNode;
+    }
+    interface FlowCondition extends FlowNode {
+        expression: Expression;
+        assumeTrue: boolean;
+        antecedent: FlowNode;
+    }
     interface AmdDependency {
         path: string;
         name: string;
@@ -1174,6 +1195,7 @@ declare namespace ts {
         getSymbolsOfParameterPropertyDeclaration(parameter: ParameterDeclaration, parameterName: string): Symbol[];
         getShorthandAssignmentValueSymbol(location: Node): Symbol;
         getExportSpecifierLocalTargetSymbol(location: ExportSpecifier): Symbol;
+        getPropertySymbolOfDestructuringAssignment(location: Identifier): Symbol;
         getTypeAtLocation(node: Node): Type;
         typeToString(type: Type, enclosingDeclaration?: Node, flags?: TypeFormatFlags): string;
         symbolToString(symbol: Symbol, enclosingDeclaration?: Node, meaning?: SymbolFlags): string;
@@ -1233,6 +1255,7 @@ declare namespace ts {
         WriteTypeArgumentsOfSignature = 32,
         InElementType = 64,
         UseFullyQualifiedType = 128,
+        InFirstTypeArgument = 256,
     }
     enum SymbolFormatFlags {
         None = 0,
@@ -1361,6 +1384,7 @@ declare namespace ts {
         ObjectType = 80896,
         UnionOrIntersection = 49152,
         StructuredType = 130048,
+        Narrowable = 97793,
     }
     type DestructuringPattern = BindingPattern | ObjectLiteralExpression | ArrayLiteralExpression;
     interface Type {
@@ -1525,13 +1549,13 @@ declare namespace ts {
         lib?: string[];
         types?: string[];
         list?: string[];
-        [option: string]: CompilerOptionsValue;
+        [option: string]: CompilerOptionsValue | undefined;
     }
     interface TypingOptions {
         enableAutoDiscovery?: boolean;
         include?: string[];
         exclude?: string[];
-        [option: string]: string[] | boolean;
+        [option: string]: string[] | boolean | undefined;
     }
     interface DiscoverTypingsInfo {
         fileNames: string[];
@@ -1637,6 +1661,11 @@ declare namespace ts {
 declare namespace ts {
     type FileWatcherCallback = (fileName: string, removed?: boolean) => void;
     type DirectoryWatcherCallback = (directoryName: string) => void;
+    interface WatchedFile {
+        fileName: string;
+        callback: FileWatcherCallback;
+        mtime?: Date;
+    }
     interface System {
         args: string[];
         newLine: string;
@@ -1898,7 +1927,7 @@ declare namespace ts {
         getScriptFileNames(): string[];
         getScriptKind?(fileName: string): ScriptKind;
         getScriptVersion(fileName: string): string;
-        getScriptSnapshot(fileName: string): IScriptSnapshot;
+        getScriptSnapshot(fileName: string): IScriptSnapshot | undefined;
         getLocalizedDiagnosticMessages?(): any;
         getCancellationToken?(): HostCancellationToken;
         getCurrentDirectory(): string;
@@ -1951,6 +1980,7 @@ declare namespace ts {
         getFormattingEditsForDocument(fileName: string, options: FormatCodeOptions): TextChange[];
         getFormattingEditsAfterKeystroke(fileName: string, position: number, key: string, options: FormatCodeOptions): TextChange[];
         getDocCommentTemplateAtPosition(fileName: string, position: number): TextInsertion;
+        isValidBraceCompletionAtPostion(fileName: string, position: number, openingBrace: number): boolean;
         getEmitOutput(fileName: string): EmitOutput;
         getProgram(): Program;
         dispose(): void;
